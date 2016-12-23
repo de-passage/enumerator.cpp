@@ -6,8 +6,8 @@
 #include <detail/generators.hpp>
 
 template<typename T>
-class Vector : public Enumerable<T, detail::Generator<Vector<T>>> {
-	typedef Enumerable<T, detail::Generator<Vector<T>>> EnumerableType;
+class Vector : public Enumerable<T> {
+	typedef Enumerable<T> EnumerableType;
 	constexpr Vector();
 
 };

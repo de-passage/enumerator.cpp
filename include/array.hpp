@@ -6,18 +6,19 @@
 #include <detail/generators.hpp>
 
 template<typename T, SizeType Size>
-class Array : public Enumerable<T, detail::Generator<Array<T, Size>> > {
+class Array : public Enumerable<T> {
 	public:
+		typedef Enumerable<T> EnumerableType;
+
 		constexpr Array();
 		constexpr Array(T (&)[Size]); 
-		constexpr Array(const Array<T, Size>&);
+		constexpr Array(const Array<T, Size>&) = default;
 
 		constexpr SizeType size() { return Size; }
 
 		template<typename F>
 		void each(F f); 
 
-		typedef Enumerable<T, detail::Generator<Array<T, Size>>> EnumerableType;
 	private:
 		T (&_arr)[Size];
 };

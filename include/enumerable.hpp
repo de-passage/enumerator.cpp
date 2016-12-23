@@ -9,7 +9,7 @@ template<typename, typename>
 struct Enumerator;
 */
 
-template<typename ValueType, typename Generator>
+template<typename ValueType, typename Generator = detail::Generator<ValueType> >
 struct Enumerable : Generator {
 	
 //	typedef Enumerator<ValueType, Generator> EnumeratorType;
