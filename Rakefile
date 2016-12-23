@@ -3,8 +3,8 @@ require "pathname"
 module Tools
 
 	class Base
-		attr_accessor :options
-		attr_reader :name, :type
+		attr_accessor :options, :safe_mode
+		attr_reader :type
 
 		def initialize type
 			@options = []
@@ -18,6 +18,11 @@ module Tools
 		def run *args
 			command(*args)
 		end
+
+		def method_missing s, *args, &blck
+			return if @safe_mode
+			super(s, *args, &blck)
+		end
 	end
 
 	module GCC
@@ -29,11 +34,11 @@ module Tools
 
 		def paths= p
 			@paths = case p
-			when Array
-				p
-			else
-				[p]
-			end
+					 when Array
+						 p
+					 else
+						 [p]
+					 end
 		end
 
 
@@ -44,6 +49,24 @@ module Tools
 		def name 
 			"gcc"
 		end
+
+		def multi_threaded= b
+			case b
+			when true
+				options << "-pthread"
+			when false
+				options.delete("-pthread")
+			end
+		end
+
+		def header_file_extensions 
+			".h"
+		end
+
+		def source_file_extensions
+			".cpp"
+		end
+
 	end
 
 	module GXX
@@ -51,6 +74,14 @@ module Tools
 
 		def name
 			"g++"
+		end
+
+		def header_file_extensions
+			/\.(h(((pp|xx)?|h)|inl))$/
+		end
+
+		def source_file_extensions
+			/\.c((pp|xx)?|c)$/
 		end
 	end
 
@@ -66,12 +97,8 @@ module Tools
 			end
 		end
 
-		class GXX < Base
-			include Tools::GXX
-
-			def initialize
-				@name = "g++"
-			end
+		class GCC < Base 
+			include Tools::GCC
 
 			def command file, out = nil
 				[name, *options, *include_path, "-c", file] + (out ? ["-o", out] : [])
@@ -81,9 +108,10 @@ module Tools
 				paths.map { |p| "-I" + p }
 			end
 
-			def source_file_extensions
-				/\.c((pp|xx)?|c)$/
-			end
+		end
+
+		class GXX < GCC
+			include Tools::GXX
 		end
 	end
 
@@ -94,12 +122,8 @@ module Tools
 			end 
 		end
 
-		class GXX < Base
-			include Tools::GXX
-
-			def initialize
-				@name = "g++"
-			end
+		class GCC < Base
+			include Tools::GCC
 
 			def command files, out
 				[name, *options, "-o", out, *files, *_libraries]
@@ -116,7 +140,11 @@ module Tools
 			private def _libraries
 				libraries.map { |l| "-l" + l }
 			end
+		end
 
+
+		class GXX < GCC
+			include Tools::GXX
 		end
 	end
 
@@ -137,9 +165,9 @@ module Tools
 end
 
 class Toolchain 
-	HPP_FILE_REGEX = /\.(h(((pp|xx)?|h)|inl))$/
 
 	attr_accessor :working_directory, :executable_name, :header_directory, :source_directory, :binary_directory, :build_directory, :library_directory
+	attr_reader :tools
 
 	def initialize
 		@working_directory = nil
@@ -155,11 +183,9 @@ class Toolchain
 		@library_directory = "lib"
 	end
 
-	def compile file, out = nil
-		compiler.paths |= [header_directory]
-		compiler.run(*([file, out].compact)) 
+	def tools
+		[ @compiler, @attr_accessor, @linker ].compact
 	end
-
 	["compiler", "archive_manager", "linker"].each do |tag|
 		class_eval <<~EOS
 			def #{tag}
@@ -174,12 +200,33 @@ class Toolchain
 					t
 				end
 			end
-			EOS
+		EOS
 	end
 
 	def link
 		linker.run(obj_files, exec_path)
 	end
+
+	def archive name
+		archive_manager.run name
+	end
+
+	def compile file, out = nil
+		compiler.paths |= [header_directory]
+		compiler.run(*([file, out].compact)) 
+	end
+
+	def set hash
+		hash.each do |k, v|
+			tools.compact.each do |t| 
+				t.safe_mode = true
+				t.send("#{k}=", v)
+				t.safe_mode = false
+			end
+		end
+	end
+
+
 
 	# Returns a string containing a path to the executable to be built
 	def exec_path
@@ -212,16 +259,13 @@ class Toolchain
 	end
 
 	def included_files
-		@included_files ||= Pathname.glob(header_path + "**/*").map{|d|d.relative_path_from(header_path).to_s}.reject { |f| f.to_s !~ HPP_FILE_REGEX }
+		@included_files ||= Pathname.glob(header_path + "**/*").map{|d|d.relative_path_from(header_path).to_s}.reject { |f| f.to_s !~ compiler.header_file_extensions }
 	end
-	
+
 	def obj_extension
 		@obj_extension || @compiler.object_file_extension
 	end
 
-	def archive name
-		archive_manager.run name
-	end
 
 
 	# Finds the source file corresponding to the object file processed in parameters
@@ -276,10 +320,11 @@ class Toolchain
 end
 
 IDE = Toolchain.new
-IDE.compiler = Tools::Compiler::GXX.new
-IDE.linker = Tools::Linker::GXX.new
+IDE.compiler = Tools::Compiler::GXX
+IDE.linker = Tools::Linker::GXX
+IDE.archive_manager = Tools::ArchiveManager::Ar
 
-IDE.compiler.options = ["--std=c++1y", "-pthread", "-Wall", "-Wextra", "-pedantic"]
+IDE.compiler.options = ["--std=c++1y", "-Wall", "-Wextra", "-pedantic"]
 
 ####################################################
 # 
@@ -314,7 +359,11 @@ namespace :build do
 end
 
 desc "Run the executable"
-task :run => IDE.exec_path do
+task :run do
+	unless File.exist? IDE.exec_path
+		$stderr.puts "The executable #{IDE.exec_path} doesn't exist, please run 'rake build' first."
+		exit
+	end
 	sh IDE.exec_path
 end
 
