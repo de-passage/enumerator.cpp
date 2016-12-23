@@ -3,10 +3,10 @@
 
 #include <defines.hpp>
 #include <enumerable.hpp>
-#include <initializer_list>
+#include <detail/generators.hpp>
 
 template<typename T, SizeType Size>
-class Array : public Enumerable<T, Array<T, Size> > {
+class Array : public Enumerable<T, detail::Generator<Array<T, Size>> > {
 	public:
 		constexpr Array();
 		constexpr Array(T (&)[Size]); 
@@ -17,21 +17,21 @@ class Array : public Enumerable<T, Array<T, Size> > {
 		template<typename F>
 		void each(F f); 
 
-		typedef Enumerable<T, detail::Generator<T(*&)[Size]>> EnumerableType;
+		typedef Enumerable<T, detail::Generator<Array<T, Size>>> EnumerableType;
 	private:
 		T (&_arr)[Size];
 };
 
-template<typename T, int Size>
+template<typename T, SizeType Size>
 constexpr Array<T, Size>::Array() : EnumerableType(this), _arr() {}
 
-template<typename T, int Size>
+template<typename T, SizeType Size>
 constexpr Array<T, Size>::Array(T (&arr)[Size]) : EnumerableType(this), _arr(arr) {}
 
-template<typename T, int Size>
+template<typename T, SizeType Size>
 template<typename F>
 void Array<T, Size>::each(F f) { 
-	for(auto i = 0; i < size(); ++i)
+	for(SizeType i = 0; i < size(); ++i)
 		f(_arr[i]);
 }
 

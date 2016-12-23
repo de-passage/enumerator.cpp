@@ -27,7 +27,7 @@ int main() {
 	int array[10] = {1,2,3,4,5,6,7,8,9,10};
 	Array<int, 10> test(array);
 	test.each([](int i) { std::cout << "test -> " << i << std::endl; } );
-	std::cout << "All: " << test.all([](int i) { std::cout << "in -> " << i << std::endl; return i; }) << std::endl;
+	std::cout << "All: " << test.all([](int i) { return i; }) << std::endl;
 
 	return 0;
 }

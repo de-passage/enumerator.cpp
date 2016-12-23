@@ -7,7 +7,7 @@
 
 template<typename T>
 class Vector : public Enumerable<T, detail::Generator<Vector<T>>> {
-	typedef EnumerableType Enumerable<T, detail::Generator<Vector<T>>>;
+	typedef Enumerable<T, detail::Generator<Vector<T>>> EnumerableType;
 	constexpr Vector();
 
 };
